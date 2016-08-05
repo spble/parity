@@ -32,7 +32,7 @@ use engines::Engine;
 use miner::{MinerService, MinerStatus, TransactionQueue, AccountDetails, TransactionOrigin};
 use miner::work_notify::WorkPoster;
 use client::TransactionImportResult;
-use miner::price_info::PriceInfo;
+use miner::gas_pricer::GasPricer;
 
 /// Different possible definitions for pending transaction set.
 #[derive(Debug, PartialEq)]
@@ -84,76 +84,6 @@ impl Default for MinerOptions {
 			reseal_min_period: Duration::from_secs(2),
 			work_queue_size: 20,
 			enable_resubmission: true,
-		}
-	}
-}
-
-/// Options for the dynamic gas price recalibrator.
-#[derive(Debug, PartialEq)]
-pub struct GasPriceCalibratorOptions {
-	/// Base transaction price to match against.
-	pub usd_per_tx: f32,
-	/// How frequently we should recalibrate.
-	pub recalibration_period: Duration,
-}
-
-/// The gas price validator variant for a `GasPricer`.
-#[derive(Debug, PartialEq)]
-pub struct GasPriceCalibrator {
-	options: GasPriceCalibratorOptions,
-	next_calibration: Instant,
-}
-
-impl GasPriceCalibrator {
-	fn recalibrate<F: Fn(U256) + Sync + Send + 'static>(&mut self, set_price: F) {
-		trace!(target: "miner", "Recalibrating {:?} versus {:?}", Instant::now(), self.next_calibration);
-		if Instant::now() >= self.next_calibration {
-			let usd_per_tx = self.options.usd_per_tx;
-			trace!(target: "miner", "Getting price info");
-			if let Ok(_) = PriceInfo::get(move |price: PriceInfo| {
-				trace!(target: "miner", "Price info arrived: {:?}", price);
-				let usd_per_eth = price.ethusd;
-				let wei_per_usd: f32 = 1.0e18 / usd_per_eth;
-				let gas_per_tx: f32 = 21000.0;
-				let wei_per_gas: f32 = wei_per_usd * usd_per_tx / gas_per_tx;
-				info!(target: "miner", "Updated conversion rate to Ξ1 = {} ({} wei/gas)", Colour::White.bold().paint(format!("US${}", usd_per_eth)), Colour::Yellow.bold().paint(format!("{}", wei_per_gas)));
-				set_price(U256::from_dec_str(&format!("{:.0}", wei_per_gas)).unwrap());
-			}) {
-				self.next_calibration = Instant::now() + self.options.recalibration_period;
-			} else {
-				warn!(target: "miner", "Unable to update Ether price.");
-			}
-		}
-	}
-}
-
-/// Struct to look after updating the acceptable gas price of a miner.
-#[derive(Debug, PartialEq)]
-pub enum GasPricer {
-	/// A fixed gas price in terms of Wei - always the argument given.
-	Fixed(U256),
-	/// Gas price is calibrated according to a fixed amount of USD.
-	Calibrated(GasPriceCalibrator),
-}
-
-impl GasPricer {
-	/// Create a new Calibrated `GasPricer`.
-	pub fn new_calibrated(options: GasPriceCalibratorOptions) -> GasPricer {
-		GasPricer::Calibrated(GasPriceCalibrator {
-			options: options,
-			next_calibration: Instant::now(),
-		})
-	}
-
-	/// Create a new Fixed `GasPricer`.
-	pub fn new_fixed(gas_price: U256) -> GasPricer {
-		GasPricer::Fixed(gas_price)
-	}
-
-	fn recalibrate<F: Fn(U256) + Sync + Send + 'static>(&mut self, set_price: F) {
-		match *self {
-			GasPricer::Fixed(ref max) => set_price(max.clone()),
-			GasPricer::Calibrated(ref mut cal) => cal.recalibrate(set_price),
 		}
 	}
 }

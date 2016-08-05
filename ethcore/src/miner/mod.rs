@@ -46,9 +46,11 @@ mod external;
 mod transaction_queue;
 mod work_notify;
 mod price_info;
+mod gas_pricer;
 
 pub use self::transaction_queue::{TransactionQueue, AccountDetails, TransactionOrigin};
-pub use self::miner::{Miner, MinerOptions, PendingSet, GasPricer, GasPriceCalibratorOptions};
+pub use self::miner::{Miner, MinerOptions, PendingSet};
+pub use self::gas_pricer::{GasPricer, GasPriceCalibratorOptions};
 pub use self::external::{ExternalMiner, ExternalMinerService};
 pub use client::TransactionImportResult;
 
