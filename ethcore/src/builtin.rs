@@ -86,9 +86,7 @@ pub fn copy_to(src: &[u8], dest: &mut[u8]) {
 pub fn new_builtin_exec(name: &str) -> Box<Fn(&[u8], &mut [u8])> {
 	match name {
 		"identity" => Box::new(move|input: &[u8], output: &mut[u8]| {
-			for i in 0..min(input.len(), output.len()) {
-				output[i] = input[i];
-			}
+			copy_to(input, output);
 		}),
 		"ecrecover" => Box::new(move|input: &[u8], output: &mut[u8]| {
 			#[repr(packed)]
@@ -131,6 +129,10 @@ pub fn new_builtin_exec(name: &str) -> Box<Fn(&[u8], &mut [u8])> {
 			let mut ret = H256::new();
 			sha.result(&mut ret.as_slice_mut()[12..32]);
 			copy_to(&ret, output);
+		}),
+		"announce" => Box::new(move|input: &[u8], output: &mut[u8]| {
+			trace!(target: "consensus", "Announcing: {:?}", input);
+			copy_to(input, output);
 		}),
 		_ => {
 			panic!("invalid builtin name {}", name);
